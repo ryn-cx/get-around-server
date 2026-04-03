@@ -74,8 +74,9 @@ export default {
 			return new Response("POST required", { status: 405 });
 		}
 
-		if (request.headers.get("X-Auth-Token") !== env.AUTH_TOKEN) {
-			return new Response("Unauthorized (Bad Token)", { status: 401 });
+		const token = request.headers.get("Authorization")?.replace("Bearer ", "");
+		if (token !== env.AUTH_TOKEN) {
+			return new Response("Unauthorized", { status: 401 });
 		}
 
 		const body = (await request.json()) as RequestBody;
