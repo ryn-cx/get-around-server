@@ -6,12 +6,12 @@ interface RequestBody {
 	params?: Record<string, unknown>;
 	cookies?: Record<string, unknown>;
 	content?: unknown;
-	auth?: string | [string, string] | [string, string, ...unknown[]];
+	auth?: string | [string, string];
 	timeout?: number;
 }
 
-function hasContentType(headers: Record<string, string>): boolean {
-	return Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
+function hasHeader(headers: Record<string, string>, name: string): boolean {
+	return Object.keys(headers).some((k) => k.toLowerCase() === name.toLowerCase());
 }
 
 function withParams(url: string, params?: Record<string, unknown>): string {
@@ -93,12 +93,12 @@ export default {
 
 		const headers: Record<string, string> = { ...incomingHeaders };
 		const cookie = cookieHeader(cookies);
-		if (cookie && headers.Cookie === undefined) {
+		if (cookie && !hasHeader(headers, "cookie")) {
 			headers.Cookie = cookie;
 		}
 
 		const authorization = authHeader(auth);
-		if (authorization && headers.Authorization === undefined) {
+		if (authorization && !hasHeader(headers, "authorization")) {
 			headers.Authorization = authorization;
 		}
 
@@ -114,23 +114,15 @@ export default {
 				signal: controller.signal,
 			};
 
-			if (content !== undefined) {
-				if (typeof content === "object" && content !== null) {
-					opts.body = JSON.stringify(content);
-					if (!hasContentType(opts.headers)) {
+			const payload = content ?? data;
+			if (payload !== undefined) {
+				if (typeof payload === "object" && payload !== null) {
+					opts.body = JSON.stringify(payload);
+					if (!hasHeader(opts.headers, "content-type")) {
 						opts.headers["Content-Type"] = "application/json";
 					}
 				} else {
-					opts.body = String(content);
-				}
-			} else if (data !== undefined) {
-				if (typeof data === "object") {
-					opts.body = JSON.stringify(data);
-					if (!hasContentType(opts.headers)) {
-						opts.headers["Content-Type"] = "application/json";
-					}
-				} else {
-					opts.body = String(data);
+					opts.body = String(payload);
 				}
 			}
 
