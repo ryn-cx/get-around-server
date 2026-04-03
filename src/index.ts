@@ -3,6 +3,7 @@ interface RequestBody {
 	method: string;
 	headers?: Record<string, string>;
 	data?: unknown;
+	form?: Record<string, unknown>;
 	params?: Record<string, unknown>;
 	cookies?: Record<string, unknown>;
 	content?: unknown;
@@ -85,6 +86,7 @@ export default {
 			method,
 			headers: incomingHeaders = {},
 			data,
+			form,
 			params,
 			cookies,
 			content,
@@ -115,15 +117,28 @@ export default {
 				signal: controller.signal,
 			};
 
-			const payload = content ?? data;
-			if (payload !== undefined) {
-				if (typeof payload === "object" && payload !== null) {
-					opts.body = JSON.stringify(payload);
-					if (!hasHeader(opts.headers, "content-type")) {
-						opts.headers["Content-Type"] = "application/json";
+			if (form !== undefined) {
+				const formParams = new URLSearchParams();
+				for (const [key, value] of Object.entries(form)) {
+					if (value !== undefined && value !== null) {
+						formParams.append(key, String(value));
 					}
-				} else {
-					opts.body = String(payload);
+				}
+				opts.body = formParams.toString();
+				if (!hasHeader(opts.headers, "content-type")) {
+					opts.headers["Content-Type"] = "application/x-www-form-urlencoded";
+				}
+			} else {
+				const payload = content ?? data;
+				if (payload !== undefined) {
+					if (typeof payload === "object" && payload !== null) {
+						opts.body = JSON.stringify(payload);
+						if (!hasHeader(opts.headers, "content-type")) {
+							opts.headers["Content-Type"] = "application/json";
+						}
+					} else {
+						opts.body = String(payload);
+					}
 				}
 			}
 
