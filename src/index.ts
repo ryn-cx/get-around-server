@@ -24,6 +24,20 @@ function bytesToBase64(bytes: Uint8Array): string {
 	return btoa(binary);
 }
 
+function bodyMatchesEncoding(encoding: string, bytes: Uint8Array): boolean {
+	if (encoding === "gzip") {
+		return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+	}
+	if (encoding === "deflate") {
+		return (
+			bytes.length >= 2 &&
+			(bytes[0] & 0x0f) === 0x08 &&
+			(((bytes[0] << 8) | bytes[1]) % 31 === 0)
+		);
+	}
+	return true;
+}
+
 function withParams(url: string, params?: Record<string, unknown>): string {
 	if (!params) {
 		return url;
@@ -153,16 +167,19 @@ export default {
 
 			const response = await fetch(targetUrl, opts);
 			const responseHeaders = Object.fromEntries(response.headers.entries());
+			const rawBytes = new Uint8Array(await response.arrayBuffer());
 
-			// Preserve the raw (possibly compressed) bytes; base64 keeps the JSON
-			// payload valid and lets the client decode via Content-Encoding.
-			const responseBody = bytesToBase64(new Uint8Array(await response.arrayBuffer()));
+			const declaredEncoding = (responseHeaders["content-encoding"] ?? "").toLowerCase();
+			if (declaredEncoding && !bodyMatchesEncoding(declaredEncoding, rawBytes)) {
+				delete responseHeaders["content-encoding"];
+				delete responseHeaders["content-length"];
+			}
 
 			return new Response(
 				JSON.stringify({
 					statusCode: response.status,
 					headers: responseHeaders,
-					body: responseBody,
+					body: bytesToBase64(rawBytes),
 					encoding: "base64",
 				}),
 				{ headers: { "Content-Type": "application/json" } }
