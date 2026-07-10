@@ -109,13 +109,6 @@ export default {
 			headers.Cookie = cookie;
 		}
 
-		// Set an explicit Accept-Encoding so the Workers runtime skips its
-		// automatic decompression and passes the compressed bytes through with
-		// the Content-Encoding header intact.
-		if (!hasHeader(headers, "accept-encoding")) {
-			headers["Accept-Encoding"] = "gzip, deflate, br, zstd";
-		}
-
 		const authorization = authHeader(auth);
 		if (authorization && !hasHeader(headers, "authorization")) {
 			headers.Authorization = authorization;
