@@ -9,8 +9,7 @@ import { beforeAll, afterEach, describe, it, expect } from "vitest";
 import worker from "../src/index";
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
-const TOKEN = "test-token";
-const testEnv = { ...env, AUTH_TOKEN: TOKEN };
+const testEnv = { ...env };
 const UPSTREAM = "https://upstream.example";
 
 interface Payload {
@@ -31,13 +30,12 @@ interface RelayResult {
 
 async function callWorker(
 	payload: Payload,
-	init: { token?: string; method?: string } = {}
+	init: { method?: string } = {}
 ): Promise<Response> {
 	const method = init.method ?? "POST";
 	const withBody = method !== "GET" && method !== "HEAD";
 	const request = new IncomingRequest("https://relay.example/", {
 		method,
-		headers: { Authorization: `Bearer ${init.token ?? TOKEN}` },
 		body: withBody ? JSON.stringify(payload) : undefined,
 	});
 	const ctx = createExecutionContext();
@@ -55,18 +53,13 @@ afterEach(() => {
 	fetchMock.assertNoPendingInterceptors();
 });
 
-describe("authentication", () => {
+describe("method", () => {
 	it("rejects non-POST requests", async () => {
 		const response = await callWorker(
 			{ url: `${UPSTREAM}/x`, method: "GET" },
 			{ method: "GET" }
 		);
 		expect(response.status).toBe(405);
-	});
-
-	it("rejects a missing or wrong bearer token", async () => {
-		const response = await callWorker({ url: `${UPSTREAM}/x`, method: "GET" }, { token: "nope" });
-		expect(response.status).toBe(401);
 	});
 });
 

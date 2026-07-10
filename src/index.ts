@@ -40,14 +40,9 @@ function bodyMatchesEncoding(encoding: string, bytes: Uint8Array): boolean {
 }
 
 export default {
-	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+	async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
 		if (request.method !== "POST") {
 			return new Response("POST required", { status: 405 });
-		}
-
-		const token = request.headers.get("Authorization")?.replace("Bearer ", "");
-		if (token !== env.AUTH_TOKEN) {
-			return new Response("Unauthorized", { status: 401 });
 		}
 
 		const payload = (await request.json()) as RequestBody;
