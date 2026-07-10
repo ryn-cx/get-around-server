@@ -2,17 +2,9 @@ interface RequestBody {
 	url: string;
 	method: string;
 	headers?: Record<string, string>;
-	data?: unknown;
-	form?: Record<string, unknown>;
-	params?: Record<string, unknown>;
-	cookies?: Record<string, unknown>;
-	content?: unknown;
-	auth?: string | [string, string];
+	body?: string;
+	followRedirects?: boolean;
 	timeout?: number;
-}
-
-function hasHeader(headers: Record<string, string>, name: string): boolean {
-	return Object.keys(headers).some((k) => k.toLowerCase() === name.toLowerCase());
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -22,6 +14,15 @@ function bytesToBase64(bytes: Uint8Array): string {
 		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
 	}
 	return btoa(binary);
+}
+
+function base64ToBytes(data: string): Uint8Array {
+	const binary = atob(data);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
 }
 
 function bodyMatchesEncoding(encoding: string, bytes: Uint8Array): boolean {
@@ -38,60 +39,6 @@ function bodyMatchesEncoding(encoding: string, bytes: Uint8Array): boolean {
 	return true;
 }
 
-function withParams(url: string, params?: Record<string, unknown>): string {
-	if (!params) {
-		return url;
-	}
-
-	const u = new URL(url);
-	for (const [key, value] of Object.entries(params)) {
-		if (value === undefined || value === null) {
-			continue;
-		}
-
-		if (Array.isArray(value)) {
-			for (const item of value) {
-				u.searchParams.append(key, String(item));
-			}
-			continue;
-		}
-
-		u.searchParams.append(key, String(value));
-	}
-
-	return u.toString();
-}
-
-function cookieHeader(cookies?: Record<string, unknown>): string | undefined {
-	if (!cookies) {
-		return undefined;
-	}
-
-	const entries = Object.entries(cookies)
-		.filter(([, value]) => value !== undefined && value !== null)
-		.map(([key, value]) => `${key}=${String(value)}`);
-
-	return entries.length > 0 ? entries.join("; ") : undefined;
-}
-
-function authHeader(auth?: RequestBody["auth"]): string | undefined {
-	if (!auth) {
-		return undefined;
-	}
-
-	if (typeof auth === "string") {
-		return auth;
-	}
-
-	if (Array.isArray(auth) && auth.length >= 2) {
-		const user = String(auth[0]);
-		const pass = String(auth[1]);
-		return `Basic ${btoa(`${user}:${pass}`)}`;
-	}
-
-	return undefined;
-}
-
 export default {
 	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
 		if (request.method !== "POST") {
@@ -103,69 +50,28 @@ export default {
 			return new Response("Unauthorized", { status: 401 });
 		}
 
-		const body = (await request.json()) as RequestBody;
-		const {
-			url,
-			method,
-			headers: incomingHeaders = {},
-			data,
-			form,
-			params,
-			cookies,
-			content,
-			auth,
-			timeout = 30,
-		} = body;
-
-		const headers: Record<string, string> = { ...incomingHeaders };
-		const cookie = cookieHeader(cookies);
-		if (cookie && !hasHeader(headers, "cookie")) {
-			headers.Cookie = cookie;
-		}
-
-		const authorization = authHeader(auth);
-		if (authorization && !hasHeader(headers, "authorization")) {
-			headers.Authorization = authorization;
-		}
-
-		const targetUrl = withParams(url, params);
+		const payload = (await request.json()) as RequestBody;
+		const { url, method, headers = {}, body, followRedirects = false, timeout = 30 } = payload;
 
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeout * 1000);
 
 		try {
-			const opts: RequestInit & { headers: Record<string, string> } = {
+			const opts: RequestInit = {
 				method,
 				headers,
 				signal: controller.signal,
+				redirect: followRedirects ? "follow" : "manual",
 			};
 
-			if (form !== undefined) {
-				const formParams = new URLSearchParams();
-				for (const [key, value] of Object.entries(form)) {
-					if (value !== undefined && value !== null) {
-						formParams.append(key, String(value));
-					}
-				}
-				opts.body = formParams.toString();
-				if (!hasHeader(opts.headers, "content-type")) {
-					opts.headers["Content-Type"] = "application/x-www-form-urlencoded";
-				}
-			} else {
-				const payload = content ?? data;
-				if (payload !== undefined) {
-					if (typeof payload === "object" && payload !== null) {
-						opts.body = JSON.stringify(payload);
-						if (!hasHeader(opts.headers, "content-type")) {
-							opts.headers["Content-Type"] = "application/json";
-						}
-					} else {
-						opts.body = String(payload);
-					}
+			if (body !== undefined && method !== "GET" && method !== "HEAD") {
+				const bytes = base64ToBytes(body);
+				if (bytes.length > 0) {
+					opts.body = bytes;
 				}
 			}
 
-			const response = await fetch(targetUrl, opts);
+			const response = await fetch(url, opts);
 			const responseHeaders = Object.fromEntries(response.headers.entries());
 			const rawBytes = new Uint8Array(await response.arrayBuffer());
 
