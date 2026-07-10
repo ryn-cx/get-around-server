@@ -15,6 +15,15 @@ function hasHeader(headers: Record<string, string>, name: string): boolean {
 	return Object.keys(headers).some((k) => k.toLowerCase() === name.toLowerCase());
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+	let binary = "";
+	const chunkSize = 0x8000;
+	for (let i = 0; i < bytes.length; i += chunkSize) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+	}
+	return btoa(binary);
+}
+
 function withParams(url: string, params?: Record<string, unknown>): string {
 	if (!params) {
 		return url;
@@ -100,6 +109,13 @@ export default {
 			headers.Cookie = cookie;
 		}
 
+		// Set an explicit Accept-Encoding so the Workers runtime skips its
+		// automatic decompression and passes the compressed bytes through with
+		// the Content-Encoding header intact.
+		if (!hasHeader(headers, "accept-encoding")) {
+			headers["Accept-Encoding"] = "gzip, deflate, br, zstd";
+		}
+
 		const authorization = authHeader(auth);
 		if (authorization && !hasHeader(headers, "authorization")) {
 			headers.Authorization = authorization;
@@ -143,14 +159,18 @@ export default {
 			}
 
 			const response = await fetch(targetUrl, opts);
-			const responseBody = await response.text();
 			const responseHeaders = Object.fromEntries(response.headers.entries());
+
+			// Preserve the raw (possibly compressed) bytes; base64 keeps the JSON
+			// payload valid and lets the client decode via Content-Encoding.
+			const responseBody = bytesToBase64(new Uint8Array(await response.arrayBuffer()));
 
 			return new Response(
 				JSON.stringify({
 					statusCode: response.status,
 					headers: responseHeaders,
 					body: responseBody,
+					encoding: "base64",
 				}),
 				{ headers: { "Content-Type": "application/json" } }
 			);
