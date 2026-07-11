@@ -60,7 +60,7 @@ describe("relaying", () => {
 		expect(response.headers.get("x-up")).toBe("1");
 	});
 
-	it("strips origin/referer/cf-/x-forwarded request headers and keeps the rest", async () => {
+	it("forwards all request headers to the upstream unchanged", async () => {
 		let captured: Record<string, string> = {};
 		fetchMock
 			.get(UPSTREAM)
@@ -83,7 +83,7 @@ describe("relaying", () => {
 		});
 
 		expect(captured["x-keep"]).toBe("keep");
-		expect(captured["x-forwarded-for"]).toBeUndefined();
-		expect(captured["referer"]).toBeUndefined();
+		expect(captured["x-forwarded-for"]).toBe("1.2.3.4");
+		expect(captured["referer"]).toBe("https://ref.example");
 	});
 });
