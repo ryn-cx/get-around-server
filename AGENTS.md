@@ -35,12 +35,14 @@ the relay stands entirely on its own — anything that speaks HTTP can drive it.
 
 ## Drive it directly 🛠️
 
-The target is passed URL-encoded in the query string (encode it twice — the Worker decodes
-twice, which keeps a target's own query parameters from bleeding into the relay's):
+The target URL *is* the query string — everything after the first `?` is relayed verbatim,
+including the target's own query parameters. Percent-encode any characters that are reserved
+in a URL query (most importantly `#`, which would otherwise be read as a fragment and truncate
+the target):
 
 ```sh
-# Target: https://httpbin.org/get  →  double-URL-encoded into the query string
-curl "https://get-around-server.<your-subdomain>.workers.dev/?https%253A%252F%252Fhttpbin.org%252Fget" \
+# Target: https://httpbin.org/get?q=%23example
+curl "https://get-around-server.<your-subdomain>.workers.dev/?https://httpbin.org/get?q=%23example" \
   -H "CF-Access-Client-Id: <client-id>" \
   -H "CF-Access-Client-Secret: <client-secret>"
 ```

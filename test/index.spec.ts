@@ -10,10 +10,8 @@ import worker from "../src/index";
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 const UPSTREAM = "https://upstream.example";
 
-// The worker proxies whatever target URL is passed in the query string. The
-// target is expected to be double-URI-encoded (the worker decodes it twice).
 function proxyUrl(target: string): string {
-	return `https://relay.example/?${encodeURIComponent(encodeURIComponent(target))}`;
+	return `https://relay.example/?${target}`;
 }
 
 async function callWorker(
@@ -58,6 +56,26 @@ describe("relaying", () => {
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("hello world");
 		expect(response.headers.get("x-up")).toBe("1");
+	});
+
+	it("relays a percent-encoded query value verbatim (leading # is not decoded)", async () => {
+		let capturedPath = "";
+		fetchMock
+			.get(UPSTREAM)
+			.intercept({
+				method: "GET",
+				path(received: string) {
+					capturedPath = received;
+					return true;
+				},
+			})
+			.reply(200, "ok");
+
+		const response = await callWorker(`${UPSTREAM}/search?q=%23COMPASS&n=6`);
+
+		// %23 must survive so the upstream sees q=#COMPASS, not an empty q.
+		expect(response.status).toBe(200);
+		expect(capturedPath).toBe("/search?q=%23COMPASS&n=6");
 	});
 
 	it("forwards all request headers to the upstream unchanged", async () => {

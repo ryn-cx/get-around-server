@@ -14,9 +14,7 @@ const handler: ExportedHandler = {
       );
     }
 
-    const targetUrl = decodeURIComponent(
-      decodeURIComponent(originUrl.search.slice(1))
-    );
+    const targetUrl = originUrl.search.slice(1);
     const newRequest = new Request(request, {
       redirect: "follow"
     });
