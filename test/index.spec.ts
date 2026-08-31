@@ -78,7 +78,9 @@ describe("relaying", () => {
 		expect(capturedPath).toBe("/search?q=%23COMPASS&n=6");
 	});
 
-	it("forwards all request headers to the upstream unchanged", async () => {
+	async function capturedUpstreamHeaders(
+		headers: Record<string, string>
+	): Promise<Record<string, string>> {
 		let captured: Record<string, string> = {};
 		fetchMock
 			.get(UPSTREAM)
@@ -92,16 +94,55 @@ describe("relaying", () => {
 			})
 			.reply(200, "ok");
 
-		await callWorker(`${UPSTREAM}/echo`, {
-			headers: {
-				"x-forwarded-for": "1.2.3.4",
-				referer: "https://ref.example",
-				"x-keep": "keep",
-			},
+		await callWorker(`${UPSTREAM}/echo`, { headers });
+		return captured;
+	}
+
+	it("forwards ordinary request headers to the upstream unchanged", async () => {
+		const captured = await capturedUpstreamHeaders({
+			"x-keep": "keep",
+			"if-none-match": '"abc123"',
 		});
 
 		expect(captured["x-keep"]).toBe("keep");
-		expect(captured["x-forwarded-for"]).toBe("1.2.3.4");
-		expect(captured["referer"]).toBe("https://ref.example");
+		expect(captured["if-none-match"]).toBe('"abc123"');
+	});
+
+	it("strips the headers that would expose the relay or the caller", async () => {
+		const captured = await capturedUpstreamHeaders({
+			"x-forwarded-for": "1.2.3.4",
+			"x-forwarded-proto": "https",
+			referer: "https://ref.example",
+			origin: "https://ref.example",
+			"cdn-loop": "cloudflare; loops=1",
+			"cf-connecting-ip": "1.2.3.4",
+			"cf-access-jwt-assertion": "token",
+			"x-keep": "keep",
+		});
+
+		expect(captured["x-forwarded-for"]).toBeUndefined();
+		expect(captured["x-forwarded-proto"]).toBeUndefined();
+		expect(captured["referer"]).toBeUndefined();
+		expect(captured["origin"]).toBeUndefined();
+		expect(captured["cdn-loop"]).toBeUndefined();
+		expect(captured["cf-connecting-ip"]).toBeUndefined();
+		expect(captured["cf-access-jwt-assertion"]).toBeUndefined();
+		expect(captured["x-keep"]).toBe("keep");
+	});
+
+	it("drops the Cloudflare Access cookies but keeps the caller's own", async () => {
+		const captured = await capturedUpstreamHeaders({
+			cookie: "CF_Authorization=jwt; session=mine; CF_AppSession=app",
+		});
+
+		expect(captured["cookie"]).toBe("session=mine");
+	});
+
+	it("drops the Cookie header entirely when only Access cookies are set", async () => {
+		const captured = await capturedUpstreamHeaders({
+			cookie: "CF_Authorization=jwt",
+		});
+
+		expect(captured["cookie"]).toBeUndefined();
 	});
 });

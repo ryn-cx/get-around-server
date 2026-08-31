@@ -21,9 +21,10 @@ the relay stands entirely on its own — anything that speaks HTTP can drive it.
   `POST` and its body arrives at the origin exactly as you sent it. GET, PUT, DELETE, PATCH —
   whatever you throw, it throws.
 - **🕵️ Leak-proof by construction.** Before forwarding, it strips the headers that would betray
-  the relay or the caller — `Origin`, `Referer`, every `CF-*` Cloudflare header, and the
-  `X-Forwarded-*` family — while passing everything else through untouched. The origin sees a
-  clean request, not your infrastructure.
+  the relay or the caller — `Origin`, `Referer`, `CDN-Loop`, every `CF-*` Cloudflare header, and
+  the `X-Forwarded-*` family — plus the `CF_Authorization` and `CF_AppSession` cookies Access
+  sets on the relay's own domain, while passing everything else (your own cookies included)
+  through untouched. The origin sees a clean request, not your infrastructure.
 - **📣 Fails loud, never silent.** Call it with no target and you get a plain `400 Bad Request`
   that tells you exactly what's missing, instead of a mystery empty response.
 - **🔒 Secured at the edge, not in code.** Authentication lives in **Cloudflare Access** with a
