@@ -21,10 +21,11 @@ the relay stands entirely on its own — anything that speaks HTTP can drive it.
   `POST` and its body arrives at the origin exactly as you sent it. GET, PUT, DELETE, PATCH —
   whatever you throw, it throws.
 - **🕵️ Leak-proof by construction.** Before forwarding, it strips the headers that would betray
-  the relay or the caller — `Origin`, `Referer`, `CDN-Loop`, every `CF-*` Cloudflare header, and
-  the `X-Forwarded-*` family — plus the `CF_Authorization` and `CF_AppSession` cookies Access
-  sets on the relay's own domain, while passing everything else (your own cookies included)
-  through untouched. The origin sees a clean request, not your infrastructure.
+  the relay or the caller — `CDN-Loop`, every `CF-*` Cloudflare header, and the
+  `X-Forwarded-*` family — plus the `CF_Authorization` and `CF_AppSession` cookies Access
+  sets on the relay's own domain, while passing everything else (your own cookies and the
+  `Origin` and `Referer` you set included) through untouched. The origin sees the request the
+  client meant to send, not your infrastructure.
 - **📣 Fails loud, never silent.** Call it with no target and you get a plain `400 Bad Request`
   that tells you exactly what's missing, instead of a mystery empty response.
 - **🔒 Secured at the edge, not in code.** Authentication lives in **Cloudflare Access** with a
@@ -56,7 +57,8 @@ To relay a `POST`, just POST to the Worker with your body; it forwards method an
 Running on the **real Workers runtime** via `@cloudflare/vitest-pool-workers` with mocked
 upstreams, the specs cover the behaviors that matter: a full relay round-trip that asserts
 the upstream status, headers, and raw body come back untouched; the header-hygiene rule that
-`Referer` and `X-Forwarded-*` are stripped while ordinary headers pass through; and the
+`CDN-Loop`, `CF-*` and `X-Forwarded-*` are stripped while ordinary headers — `Origin` and
+`Referer` among them — pass through; and the
 `400` guard for a request that names no target. These aren't unit-test stubs — they exercise
 the Worker exactly as Cloudflare will run it. ✅
 

@@ -1,5 +1,6 @@
+// TODO: Validate
 // Headers that tell the origin the request came through the relay.
-const STRIPPED_HEADERS = new Set(["origin", "referer", "cdn-loop"]);
+const STRIPPED_HEADERS = new Set(["cdn-loop"]);
 const STRIPPED_HEADER_PREFIXES = ["cf-", "x-forwarded-"];
 
 // Cookies Cloudflare Access sets on the relay's own domain.
