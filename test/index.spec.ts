@@ -102,10 +102,14 @@ describe("relaying", () => {
 		const captured = await capturedUpstreamHeaders({
 			"x-keep": "keep",
 			"if-none-match": '"abc123"',
+			referer: "https://ref.example",
+			origin: "https://ref.example",
 		});
 
 		expect(captured["x-keep"]).toBe("keep");
 		expect(captured["if-none-match"]).toBe('"abc123"');
+		expect(captured["referer"]).toBe("https://ref.example");
+		expect(captured["origin"]).toBe("https://ref.example");
 	});
 
 	it("strips the headers that would expose the relay or the caller", async () => {
